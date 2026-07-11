@@ -1,0 +1,34 @@
+# Optional: let a coding agent act on Crit pins.
+# Label any crit issue `agent-fix` → Claude Code implements it and opens a PR.
+# Requires ANTHROPIC_API_KEY in repo secrets.
+name: Crit agent-fix
+on:
+  issues:
+    types: [labeled]
+jobs:
+  fix:
+    if: github.event.label.name == 'agent-fix'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Issue #${{ github.event.issue.number }} in ${{ github.repository }} is a
+            Crit review pin from a live prototype. Its body contains the reviewer's
+            request followed by a fenced JSON block whose object has "crit": 1.
+
+            1. Parse that JSON block. Use anchor.css, anchor.text, anchor.id and
+               meta.page to locate the corresponding component in this repo's source.
+               The "commit" field is provenance only — work on the current branch head.
+            2. Implement the change the reviewer asked for, minimally and in the
+               existing code style.
+            3. Open a pull request titled "fix: <short summary>" whose body includes
+               "Fixes #${{ github.event.issue.number }}".
+          claude_args: |
+            --max-turns 25

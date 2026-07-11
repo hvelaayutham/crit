@@ -1,0 +1,14 @@
+{
+  "name": "@crit/widget",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --format=iife --global-name=Crit --target=es2020 --minify --outfile=dist/crit.js && esbuild src/index.ts --bundle --format=iife --global-name=Crit --target=es2020 --outfile=dist/crit.dev.js",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,0 +1,41 @@
+name: "Crit inject"
+description: "Inject the Crit review widget into every HTML file of a built site before deploying to GitHub Pages."
+branding:
+  icon: "message-circle"
+  color: "red"
+inputs:
+  dir:
+    description: "Directory containing the built site (the Pages artifact root)."
+    required: true
+  relay:
+    description: "Origin of your deployed Crit OAuth relay, e.g. https://crit-relay.<you>.workers.dev"
+    required: true
+  repo:
+    description: "owner/repo whose Issues store the pins."
+    default: ${{ github.repository }}
+  sha:
+    description: "Commit SHA recorded in each pin for provenance."
+    default: ${{ github.sha }}
+  src:
+    description: "URL of the widget bundle."
+    default: "https://cdn.jsdelivr.net/gh/hvelaayutham/crit@main/packages/widget/dist/crit.js"
+  position:
+    description: "FAB corner: bottom-right | bottom-left."
+    default: "bottom-right"
+  scope:
+    description: "Optional path prefix; widget stays dormant outside it (monorepo Pages)."
+    default: ""
+runs:
+  using: "composite"
+  steps:
+    - name: Inject widget
+      shell: bash
+      env:
+        CRIT_DIR: ${{ inputs.dir }}
+        CRIT_RELAY: ${{ inputs.relay }}
+        CRIT_REPO: ${{ inputs.repo }}
+        CRIT_SHA: ${{ inputs.sha }}
+        CRIT_SRC: ${{ inputs.src }}
+        CRIT_POSITION: ${{ inputs.position }}
+        CRIT_SCOPE: ${{ inputs.scope }}
+      run: node "$GITHUB_ACTION_PATH/inject.mjs"
