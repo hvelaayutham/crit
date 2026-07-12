@@ -14,9 +14,14 @@ export const STYLES = /* css */ `
   --ink: var(--crit-ink, #16181c);
   --ink-2: color-mix(in srgb, var(--ink) 58%, var(--surface));
   --line: color-mix(in srgb, var(--ink) 14%, var(--surface));
-  --radius: var(--crit-radius, 10px);
-  --shadow: 0 8px 28px rgba(10, 12, 16, 0.16), 0 1px 3px rgba(10, 12, 16, 0.12);
+  --radius: var(--crit-radius, 14px);
   --z: 2147483000;
+  --glass-bg: rgba(255, 255, 255, 0.68);
+  --glass-border: rgba(255, 255, 255, 0.55);
+  --glass-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.06),
+    0 4px 24px rgba(0, 0, 0, 0.08),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.75);
   all: initial;
   font: 500 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--ink);
@@ -26,7 +31,12 @@ export const STYLES = /* css */ `
   :host {
     --surface: var(--crit-surface, #1b1d22);
     --ink: var(--crit-ink, #eceef2);
-    --shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+    --glass-bg: rgba(28, 28, 30, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --glass-shadow:
+      0 0 0 0.5px rgba(255, 255, 255, 0.08),
+      0 8px 32px rgba(0, 0, 0, 0.45),
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
   }
 }
 * { box-sizing: border-box; margin: 0; padding: 0; font: inherit; color: inherit; }
@@ -37,26 +47,83 @@ button:focus-visible, a:focus-visible, textarea:focus-visible {
 a { color: inherit; text-decoration: none; }
 .hidden { display: none !important; }
 
+/* shared frosted-glass surface */
+.glass {
+  background: var(--glass-bg);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
 /* ------------------------------- FAB ------------------------------- */
 .fab {
-  position: fixed; bottom: 16px; z-index: var(--z);
-  display: flex; align-items: stretch; overflow: hidden;
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: 999px; box-shadow: var(--shadow);
+  position: fixed; bottom: 20px; z-index: var(--z);
+  display: flex; align-items: stretch;
+  border-radius: 999px; overflow: hidden;
+  background: var(--glass-bg);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
 }
-.fab.right { right: 16px; } .fab.left { left: 16px; }
-.fab button { display: flex; align-items: center; gap: 6px; padding: 9px 13px; color: var(--ink-2); }
-.fab button:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, var(--surface)); }
-.fab .mode.on { background: var(--accent); color: #fff; }
-.fab .mode.on:hover { background: var(--accent); color: #fff; }
-.fab .divider { width: 1px; background: var(--line); }
+.fab.right { right: 20px; } .fab.left { left: 20px; }
+.fab button {
+  position: relative;
+  display: grid; place-items: center;
+  width: 44px; height: 44px;
+  color: var(--ink-2);
+  transition: color 150ms ease, background 150ms ease;
+}
+.fab button:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.fab .mode.on {
+  color: #fff;
+  background: color-mix(in srgb, var(--accent) 88%, transparent);
+}
+.fab .mode.on:hover { background: var(--accent); }
+.fab .divider {
+  width: 0.5px; align-self: stretch; margin: 10px 0;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+}
 .fab .count {
-  min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 9%, var(--surface));
-  font-size: 11px; font-weight: 600; display: grid; place-items: center;
+  position: absolute; top: 7px; right: 7px;
+  min-width: 15px; height: 15px; padding: 0 4px;
+  border-radius: 999px; font-size: 9px; font-weight: 700;
+  display: grid; place-items: center;
+  background: var(--accent); color: #fff;
+  box-shadow: 0 0 0 1.5px var(--glass-bg);
 }
-.fab .mode.on .count { background: rgba(255,255,255,.24); }
-.fab svg { width: 15px; height: 15px; display: block; }
+.fab svg { width: 17px; height: 17px; display: block; }
+
+kbd {
+  font: 600 10px/1 ui-sans-serif, system-ui, sans-serif;
+  padding: 2px 5px; border-radius: 4px;
+  background: color-mix(in srgb, var(--ink) 7%, var(--surface));
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ink) 14%, transparent),
+              inset 0 0 0 0.5px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.modehint kbd, .hintline kbd, .hint kbd {
+  margin: 0 1px;
+}
+
+/* hint bar — same glass, shown only in comment mode */
+.modehint {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  z-index: var(--z); pointer-events: none;
+  display: flex; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 600; color: var(--ink);
+  padding: 8px 14px; border-radius: 999px;
+  background: var(--glass-bg);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+.modehint kbd {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ink) 16%, transparent),
+              inset 0 0 0 0.5px color-mix(in srgb, var(--ink) 12%, transparent);
+}
 
 /* --------------------------- target overlay ------------------------ */
 .veil {
@@ -97,12 +164,16 @@ a { color: inherit; text-decoration: none; }
 /* ---------------------------- cards (shared) ----------------------- */
 .card {
   position: fixed; z-index: var(--z); width: 300px;
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+  border-radius: var(--radius); overflow: hidden;
+  background: var(--glass-bg);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
 }
 .card header {
   display: flex; align-items: center; gap: 8px; padding: 10px 12px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 0.5px solid color-mix(in srgb, var(--ink) 10%, transparent);
 }
 .card header .title { font-weight: 600; flex: 1; }
 .avatar { width: 20px; height: 20px; border-radius: 999px; background: var(--line) center/cover; flex: none; }
@@ -114,9 +185,9 @@ textarea::placeholder { color: var(--ink-2); }
 textarea:focus-visible { outline: none; }
 .card footer {
   display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-  border-top: 1px solid var(--line);
+  border-top: 0.5px solid color-mix(in srgb, var(--ink) 10%, transparent);
 }
-.hint { color: var(--ink-2); font-size: 11px; flex: 1; }
+.hint { color: var(--ink-2); font-size: 11px; flex: 1; display: flex; align-items: center; gap: 4px; }
 .btn {
   padding: 6px 12px; border-radius: 7px; font-weight: 600;
   color: var(--ink-2);
@@ -131,11 +202,18 @@ textarea:focus-visible { outline: none; }
   position: fixed; top: 12px; bottom: 12px; z-index: var(--z);
   width: 336px; max-width: calc(100vw - 24px);
   display: flex; flex-direction: column;
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius); box-shadow: var(--shadow);
+  border-radius: var(--radius);
+  background: var(--glass-bg);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
 }
 .panel.right { right: 12px; } .panel.left { left: 12px; }
-.panel > header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.panel > header {
+  display: flex; align-items: center; gap: 8px; padding: 12px 14px;
+  border-bottom: 0.5px solid color-mix(in srgb, var(--ink) 10%, transparent);
+}
 .panel > header .title { font-weight: 700; font-size: 14px; }
 .panel > header .path { color: var(--ink-2); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .panel .list { flex: 1; overflow-y: auto; padding: 6px; }
@@ -158,9 +236,17 @@ textarea:focus-visible { outline: none; }
 .replybox { display: flex; gap: 6px; margin-top: 8px; }
 .replybox textarea { min-height: 34px; border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; }
 .empty { padding: 34px 20px; text-align: center; color: var(--ink-2); }
-.empty b { color: var(--ink); }
+.empty b { display: block; color: var(--ink); font-size: 14px; margin-bottom: 8px; }
+.hintline {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  font-size: 12px; color: var(--ink-2);
+}
 .section { padding: 10px 12px 4px; color: var(--ink-2); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.panel > footer { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); color: var(--ink-2); font-size: 12px; }
+.panel > footer {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+  border-top: 0.5px solid color-mix(in srgb, var(--ink) 10%, transparent);
+  color: var(--ink-2); font-size: 12px;
+}
 .panel > footer .grow { flex: 1; }
 .linkish { text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .iconbtn { padding: 4px; border-radius: 6px; color: var(--ink-2); display: grid; place-items: center; }
@@ -169,10 +255,15 @@ textarea:focus-visible { outline: none; }
 
 /* -------------------------------- toast ---------------------------- */
 .toast {
-  position: fixed; bottom: 68px; left: 50%; transform: translateX(-50%);
-  z-index: var(--z); background: var(--ink); color: var(--surface);
-  padding: 9px 14px; border-radius: 9px; box-shadow: var(--shadow);
+  position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%);
+  z-index: var(--z);
+  padding: 9px 14px; border-radius: 12px;
   font-weight: 600; max-width: min(420px, 90vw);
+  background: var(--glass-bg);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
 }
 .toast a { color: inherit; text-decoration: underline; }
 

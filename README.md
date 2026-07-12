@@ -57,7 +57,7 @@ Full example: [`examples/pages-deploy.yml`](examples/pages-deploy.yml).
 
 ## Reviewing (everyone else, ~0 minutes)
 
-Open the Pages link → press **c** (or tap the pen) → click any element → type → send. First comment asks for a one-time GitHub sign-in — enterprise SSO included. Pins from others are visible without signing in. Threads, replies, and resolve all work in-place; "Open in GitHub" is always one click away.
+Open the Pages link → press **c** (or tap the pen) → click any element → type → send. Anything on the page is a target: buttons, images, headings, whole sections — and hovering empty background outlines the **entire page**, for feedback like "can we try a warmer background?" that isn't about one element. The pin lands on the exact spot you clicked (stored as an offset within the anchored element), so pointing at the corner of a section or one area of a large image works too. First comment asks for a one-time GitHub sign-in — enterprise SSO included. Pins from others are visible without signing in. Threads, replies, and resolve all work in-place; "Open in GitHub" is always one click away.
 
 ## How pins are stored
 
@@ -72,7 +72,8 @@ The CTA feels lost below the fold — try it inside the hero?
 { "crit": 1, "page": "/checkout/",
   "anchor": { "id": "cta-primary", "css": "main > section.hero button.btn-primary",
               "nth": "body > …", "text": "BUTTON|Start free trial",
-              "coords": { "xPct": 48.2, "yPct": 71.5 } },
+              "coords": { "xPct": 48.2, "yPct": 71.5 },
+              "offset": { "xPct": 92.1, "yPct": 8.4 } },
   "viewport": { "w": 1440, "h": 900, "dpr": 2 },
   "commit": "9f31c2a", "widget": "0.1.0" }
 ```

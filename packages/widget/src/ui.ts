@@ -10,7 +10,8 @@ import { GH, GHError, Me, Reply } from './gh';
 import { Pin, buildBody, buildMeta, buildTitle } from './schema';
 
 const ICONS = {
-  pen: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M11.3 2.2a1.7 1.7 0 012.5 2.5L5.6 12.9l-3.3.8.8-3.3z"/></svg>',
+  comment:
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 011 1v5.5a1 1 0 01-1 1H6.2L2.5 14V4.5a1 1 0 011-1z"/></svg>',
   list: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4.5h10M3 8h10M3 11.5h6"/></svg>',
   x: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
   ext: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6.5 3.5H3.5v9h9V9.5M9.5 3h3.5v3.5M13 3L7.5 8.5"/></svg>',
@@ -30,6 +31,7 @@ export class App {
   private composerEl: HTMLElement | null = null;
   private veil: HTMLElement | null = null;
   private outline: HTMLElement | null = null;
+  private modeHint: HTMLElement | null = null;
   private toastEl: HTMLElement | null = null;
 
   private me: Me | null = null;
@@ -125,20 +127,23 @@ export class App {
   private renderFab(): void {
     const open = this.pagePins().filter((p) => p.state === 'open').length;
     this.fab.innerHTML = '';
+
     const mode = document.createElement('button');
     mode.className = `mode${this.mode ? ' on' : ''}`;
-    mode.setAttribute('aria-label', 'Toggle comment mode (c)');
-    mode.title = 'Comment mode (c)';
-    mode.innerHTML = ICONS.pen;
-    const count = document.createElement('span');
-    count.className = 'count';
-    count.textContent = String(open);
-    mode.appendChild(count);
+    mode.setAttribute('aria-label', 'Comment on page (c)');
+    mode.title = this.mode ? 'Exit comment mode (Esc)' : 'Comment on page (c)';
+    mode.innerHTML = ICONS.comment;
+    if (open > 0) {
+      const count = document.createElement('span');
+      count.className = 'count';
+      count.textContent = String(open);
+      mode.appendChild(count);
+    }
     mode.onclick = () => this.toggleMode();
 
     const divider = this.div('divider');
     const list = document.createElement('button');
-    list.setAttribute('aria-label', 'Open comments panel');
+    list.setAttribute('aria-label', 'Open comments');
     list.title = 'Comments';
     list.innerHTML = ICONS.list;
     list.onclick = () => (this.panelOpen ? this.closePanel() : this.openPanel());
@@ -161,6 +166,11 @@ export class App {
       const el = document.createElement('button');
       el.className = `pin${p.state === 'closed' ? ' resolved' : ''}`;
       el.dataset.stack = String(idx);
+      const off = p.meta.anchor.offset;
+      if (off) {
+        el.dataset.ox = String(off.xPct);
+        el.dataset.oy = String(off.yPct);
+      }
       el.setAttribute('aria-label', `Comment by ${p.author.login}: ${p.text.slice(0, 60)}`);
       el.title = `${p.author.login}: ${p.text.slice(0, 80)}`;
       if (/^https:\/\//.test(p.author.avatar)) {
@@ -188,8 +198,15 @@ export class App {
       const r = hit.el.getBoundingClientRect();
       const shift = Number(pinEl.dataset.stack || 0) * 16;
       pinEl.style.display = '';
-      pinEl.style.left = `${r.left + Math.min(r.width / 2, 40) + shift}px`;
-      pinEl.style.top = `${r.top + 2}px`;
+      if (pinEl.dataset.ox !== undefined) {
+        // Exact-point pin: render at the spot the reviewer clicked.
+        pinEl.style.left = `${r.left + (r.width * Number(pinEl.dataset.ox)) / 100 + shift}px`;
+        pinEl.style.top = `${r.top + (r.height * Number(pinEl.dataset.oy)) / 100}px`;
+      } else {
+        // Legacy pins (no offset captured): element's top edge.
+        pinEl.style.left = `${r.left + Math.min(r.width / 2, 40) + shift}px`;
+        pinEl.style.top = `${r.top + 2}px`;
+      }
     }
   }
 
@@ -227,32 +244,55 @@ export class App {
     this.outline = this.div('outline hidden');
     const tag = this.div('tag');
     this.outline.appendChild(tag);
-    this.shadow.append(this.veil, this.outline);
+    this.modeHint = this.div('modehint');
+    this.modeHint.append(
+      document.createTextNode('Click to comment · '),
+      this.kbd('esc'),
+      document.createTextNode(' exit'),
+    );
+    this.shadow.append(this.veil, this.outline, this.modeHint);
 
     this.veil.addEventListener('mousemove', (ev) => {
       this.veil!.style.pointerEvents = 'none';
       const el = document.elementFromPoint(ev.clientX, ev.clientY);
       this.veil!.style.pointerEvents = 'auto';
-      if (!el || el === this.host || el === document.documentElement || el === document.body) {
+      if (!el || el === this.host) {
         this.hoverEl = null;
         this.outline!.classList.add('hidden');
         return;
       }
-      this.hoverEl = el;
-      const r = el.getBoundingClientRect();
-      Object.assign(this.outline!.style, {
-        left: `${r.left - 2}px`,
-        top: `${r.top - 2}px`,
-        width: `${r.width}px`,
-        height: `${r.height}px`,
-      });
-      tag.textContent = el.tagName.toLowerCase() + (el.id ? `#${el.id}` : '');
+      // Hovering bare body/html = commenting on the page as a whole
+      // (background, overall layout). Outline the viewport instead.
+      const pageWide = el === document.documentElement || el === document.body;
+      this.hoverEl = pageWide ? document.body : el;
+      if (pageWide) {
+        Object.assign(this.outline!.style, {
+          left: '4px',
+          top: '4px',
+          width: `${window.innerWidth - 12}px`,
+          height: `${window.innerHeight - 12}px`,
+        });
+        tag.textContent = 'entire page';
+        tag.style.top = '8px';
+        tag.style.left = '8px';
+      } else {
+        const r = el.getBoundingClientRect();
+        Object.assign(this.outline!.style, {
+          left: `${r.left - 2}px`,
+          top: `${r.top - 2}px`,
+          width: `${r.width}px`,
+          height: `${r.height}px`,
+        });
+        tag.textContent = el.tagName.toLowerCase() + (el.id ? `#${el.id}` : '');
+        tag.style.top = '';
+        tag.style.left = '';
+      }
       this.outline!.classList.remove('hidden');
     });
     this.veil.addEventListener('click', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
-      if (this.hoverEl) this.pick(this.hoverEl);
+      if (this.hoverEl) this.pick(this.hoverEl, { x: ev.clientX, y: ev.clientY });
     });
     this.renderFab();
   }
@@ -261,13 +301,14 @@ export class App {
     this.mode = false;
     this.veil?.remove();
     this.outline?.remove();
-    this.veil = this.outline = null;
+    this.modeHint?.remove();
+    this.veil = this.outline = this.modeHint = null;
     this.hoverEl = null;
     this.renderFab();
   }
 
-  private pick(el: Element): void {
-    const anchor = capture(el);
+  private pick(el: Element, point: { x: number; y: number }): void {
+    const anchor = capture(el, point);
     this.exitMode();
     this.openComposer({ el, anchor });
   }
@@ -291,7 +332,7 @@ export class App {
 
     const footer = document.createElement('footer');
     const hint = this.div('hint');
-    hint.textContent = '⌘/Ctrl + ↵ to send';
+    hint.append(this.kbd(this.sendKey()), document.createTextNode(' send'));
     const cancel = this.btn('Cancel', () => this.closeComposer());
     const send = this.btn(this.authed() ? 'Comment' : 'Sign in with GitHub', () => void submit(), 'primary');
     footer.append(hint, cancel, send);
@@ -352,10 +393,15 @@ export class App {
 
   private placeCard(card: HTMLElement, target: Element): void {
     const r = target.getBoundingClientRect();
+    const off = this.composer?.anchor.offset;
+    // Anchor the card to the exact click point when we have one; otherwise
+    // to the element box (pins from older widgets, or zero-size targets).
+    const px = off ? r.left + (r.width * off.xPct) / 100 : r.left;
+    const py = off ? r.top + (r.height * off.yPct) / 100 : r.bottom;
     const w = 300;
-    const left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
-    let top = r.bottom + 8;
-    if (top > window.innerHeight - 190) top = Math.max(8, r.top - 190);
+    const left = Math.min(Math.max(8, px), window.innerWidth - w - 8);
+    let top = py + 8;
+    if (top > window.innerHeight - 190) top = Math.max(8, py - 198);
     card.style.left = `${left}px`;
     card.style.top = `${top}px`;
   }
@@ -400,10 +446,10 @@ export class App {
       const empty = this.div('empty');
       empty.innerHTML = '';
       const b = document.createElement('b');
-      b.textContent = 'No comments on this page yet.';
-      const rest = document.createElement('div');
-      rest.textContent = 'Press c, then click anything.';
-      empty.append(b, rest);
+      b.textContent = 'No comments yet';
+      const hint = this.div('hintline');
+      hint.append(this.kbd('c'), document.createTextNode(' then click anything on the page'));
+      empty.append(b, hint);
       list.appendChild(empty);
     }
     for (const p of active) list.appendChild(this.thread(p, 'open'));
@@ -466,7 +512,9 @@ export class App {
     const when = this.div('when');
     when.textContent = timeAgo(p.createdAt);
     const chip = this.div(`chip${kind === 'done' ? ' done' : kind === 'lost' ? ' lost' : ''}`);
-    chip.textContent = kind === 'done' ? 'resolved' : kind === 'lost' ? 'unanchored' : `#${p.number}`;
+    const isPage = p.meta.anchor.css === 'body' && !p.meta.anchor.id && !p.meta.anchor.reviewId;
+    chip.textContent =
+      kind === 'done' ? 'resolved' : kind === 'lost' ? 'unanchored' : isPage ? `page #${p.number}` : `#${p.number}`;
     top.append(av, who, when, chip);
     const body = this.div('body');
     body.textContent = p.text;
@@ -725,6 +773,16 @@ export class App {
     b.innerHTML = svg;
     b.onclick = onClick;
     return b;
+  }
+
+  private kbd(label: string): HTMLElement {
+    const k = document.createElement('kbd');
+    k.textContent = label;
+    return k;
+  }
+
+  private sendKey(): string {
+    return /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘↵' : 'Ctrl↵';
   }
 }
 

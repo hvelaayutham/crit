@@ -13,6 +13,13 @@ export interface Anchor {
   nth: string | null;      // structural nth-of-type path (always present)
   text: string | null;     // "TAG|normalized innerText (≤64)"
   coords: { xPct: number; yPct: number }; // document-relative fallback
+  /**
+   * Exact click point, % within the anchored element's box (schema-additive,
+   * v1). The pin renders here instead of the element's top edge, so a comment
+   * can target a corner of a section or a spot inside a large image.
+   * Absent/null on pins created by older widgets.
+   */
+  offset?: { xPct: number; yPct: number } | null;
 }
 
 export interface Resolved {
@@ -22,10 +29,30 @@ export interface Resolved {
 
 /* ---------------------------------- capture --------------------------------- */
 
-export function capture(el: Element): Anchor {
-  const rect = el.getBoundingClientRect();
+export function capture(el: Element, point?: { x: number; y: number }): Anchor {
   const docW = Math.max(document.documentElement.scrollWidth, 1);
   const docH = Math.max(document.documentElement.scrollHeight, 1);
+
+  // Page-level pin: the comment is about the page as a whole (bg color,
+  // layout, overall direction) rather than one element. `body` always
+  // resolves, so these pins can never orphan.
+  if (el === document.body || el === document.documentElement) {
+    return {
+      reviewId: null,
+      id: null,
+      css: 'body',
+      nth: 'body',
+      text: null,
+      coords: point
+        ? {
+            xPct: round(((point.x + window.scrollX) / docW) * 100),
+            yPct: round(((point.y + window.scrollY) / docH) * 100),
+          }
+        : { xPct: 50, yPct: 0 },
+      offset: pointOffset(document.body, point),
+    };
+  }
+  const rect = el.getBoundingClientRect();
   return {
     reviewId: el.closest('[data-crit-id]')?.getAttribute('data-crit-id') ?? null,
     id: uniqueId(el),
@@ -36,6 +63,21 @@ export function capture(el: Element): Anchor {
       xPct: round(((rect.left + window.scrollX + rect.width / 2) / docW) * 100),
       yPct: round(((rect.top + window.scrollY) / docH) * 100),
     },
+    offset: pointOffset(el, point),
+  };
+}
+
+/** Where inside the element the reviewer clicked, as % of its box. */
+function pointOffset(
+  el: Element,
+  point?: { x: number; y: number },
+): { xPct: number; yPct: number } | null {
+  if (!point) return null;
+  const r = el.getBoundingClientRect();
+  if (r.width < 1 || r.height < 1) return null;
+  return {
+    xPct: round(((point.x - r.left) / r.width) * 100),
+    yPct: round(((point.y - r.top) / r.height) * 100),
   };
 }
 
@@ -107,6 +149,15 @@ function nthPath(el: Element): string {
 }
 
 export function fingerprint(el: Element): string | null {
+  // Media has no innerText — fingerprint on alt text or the file name so
+  // images/videos anchor as reliably as text elements.
+  if (el.tagName === 'IMG' || el.tagName === 'VIDEO') {
+    const alt = (el.getAttribute('alt') ?? '').trim().replace(/\s+/g, ' ');
+    const src = el.getAttribute('src') ?? el.getAttribute('poster') ?? '';
+    const file = src.split(/[?#]/, 1)[0].split('/').pop() ?? '';
+    const key = alt || file;
+    return key.length >= 3 ? `${el.tagName}|${key.slice(0, 64)}` : null;
+  }
   const t = normText(el);
   return t.length >= 4 ? `${el.tagName}|${t.slice(0, 64)}` : null;
 }
